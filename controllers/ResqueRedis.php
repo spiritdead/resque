@@ -2,14 +2,14 @@
 
 namespace spiritdead\resque\controllers;
 
-use spiritdead\resque\exceptions\Resque_RedisException;
+use spiritdead\resque\exceptions\ResqueRedisException;
 use spiritdead\resque\models\ResqueBackend;
 
 /**
  * Class Resque_Redis
  * @package spiritdead\resque\controllers
  */
-class Resque_Redis
+class ResqueRedis
 {
     /**
      * @var string
@@ -105,7 +105,7 @@ class Resque_Redis
      * Resque_Redis constructor.
      * @param ResqueBackend|ResqueBackend[] $backend
      * @param object|null $client
-     * @throws Resque_RedisException
+     * @throws ResqueRedisException
      */
     public function __construct(ResqueBackend $backend, $client = null)
     {
@@ -116,7 +116,7 @@ class Resque_Redis
                 if (is_object($client)) {
                     $this->driver = $client;
                 } else {
-                    list($host, $port, $dsnDatabase, $user, $password, $options) = self::parseBackendDsn($backend);
+                    list($host, $port, $dsnDatabase, $user, $password, $options) = $this->parseBackendDsn($backend);
                     // $user is not used, only $password
 
                     // Look for known Credis_Client options
@@ -133,7 +133,7 @@ class Resque_Redis
                     // If we have found a database in our DSN, use it instead of the `$database`
                     // value passed into the constructor.
                     if ($dsnDatabase !== false) {
-                        $database = $dsnDatabase;
+                        $this->backend->database = $dsnDatabase;
                     }
                 }
             }
@@ -142,7 +142,7 @@ class Resque_Redis
                 $this->driver->select($backend->database);
             }
         } catch (\CredisException $e) {
-            throw new Resque_RedisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
+            throw new ResqueRedisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -160,7 +160,7 @@ class Resque_Redis
      * @return array An array of DSN compotnents, with 'false' values for any unknown components. e.g.
      *               [host, port, db, user, pass, options]
      */
-    public static function parseBackendDsn($backend)
+    public function parseBackendDsn($backend)
     {
         $dsn = (string)$backend;
 
@@ -230,7 +230,7 @@ class Resque_Redis
      * @param string $name The name of the method called.
      * @param array $args Array of supplied arguments to the method.
      * @return mixed Return value from Resident::call() based on the command.
-     * @throws Resque_RedisException
+     * @throws ResqueRedisException
      */
     public function __call($name, $args)
     {
@@ -246,7 +246,7 @@ class Resque_Redis
         try {
             return $this->driver->__call($name, $args);
         } catch (\CredisException $e) {
-            throw new Resque_RedisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
+            throw new ResqueRedisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
         }
     }
 

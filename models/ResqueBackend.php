@@ -12,7 +12,7 @@ class ResqueBackend
     /**
      * The default Redis port
      */
-    const DEFAULT_PORT = 6379;
+    const DEFAULT_PORT = '6379';
 
     /**
      * The default Redis Database number
@@ -46,7 +46,7 @@ class ResqueBackend
         $database = self::DEFAULT_DATABASE
     ) {
         $this->server = $server;
-        $this->database = $port;
+        $this->port = $port;
         $this->database = $database;
     }
 
