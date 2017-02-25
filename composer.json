@@ -1,5 +1,5 @@
 {
-  "name": "spiritdead/resque2",
+  "name": "spiritdead/resque",
   "type": "library",
   "description": "Redis backed library for creating background jobs and processing them later. Based on resque for Ruby. Inspired by @chrisboulton.",
   "keywords": [
@@ -8,7 +8,7 @@
     "redis",
     "resque"
   ],
-  "homepage": "http://www.github.com/spiritdead/resque2/",
+  "homepage": "http://www.github.com/spiritdead/resque/",
   "license": "MIT",
   "authors": [
     {
