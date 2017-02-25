@@ -31,9 +31,14 @@ class Resque
      */
     public $backend = null;
 
-
+    /**
+     * @var null|ResqueEvent
+     */
     public $events = null;
 
+    /**
+     * @var null|ResqueStat
+     */
     public $stats = null;
 
     public function __construct(ResqueBackend $backend = null)

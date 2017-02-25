@@ -2,12 +2,14 @@
 
 namespace spiritdead\resque\components\jobs\base;
 
+use spiritdead\resque\components\jobs\ResqueJobInterface;
 use spiritdead\resque\components\workers\base\ResqueWorkerBase;
 use spiritdead\resque\controllers\base\ResqueJobFactoryInterface;
 use spiritdead\resque\controllers\ResqueJobFactory;
 use spiritdead\resque\controllers\ResqueJobStatus;
 use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueJobPerformException;
+use spiritdead\resque\helpers\ResqueEvent;
 use spiritdead\resque\helpers\ResqueHelper;
 use spiritdead\resque\Resque;
 
@@ -15,12 +17,12 @@ use spiritdead\resque\Resque;
  * Class ResqueJobBase
  * @package spiritdead\resque\jobs\base
  */
-class ResqueJobBase implements ResqueJobInterface
+class ResqueJobBase implements ResqueJobInterfaceBase
 {
     /**
      * @var null|Resque
      */
-    private $resqueInstance = null;
+    public $resqueInstance = null;
 
     /**
      * @var null|ResqueJobStatus
@@ -45,7 +47,12 @@ class ResqueJobBase implements ResqueJobInterface
     /**
      * @var object|ResqueJobInterface Instance of the class performing work for this job.
      */
-    private $classInstance;
+    public $classInstance;
+
+    /**
+     * @var ResqueEvent
+     */
+    public $jevents;
 
     /**
      * @var ResqueJobFactoryInterface
@@ -60,8 +67,8 @@ class ResqueJobBase implements ResqueJobInterface
     public function __construct($resqueInstance, $queue, $payload = null)
     {
         $this->resqueInstance = $resqueInstance;
-        $this->queue;
-        $this->payload;
+        $this->queue = $queue;
+        $this->payload = $payload;
         if (isset($this->payload['id'])) {
             $this->status = new ResqueJobStatus($this->resqueInstance, $this->payload['id']);
             $this->jobFactory = new ResqueJobFactory();

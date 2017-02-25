@@ -95,20 +95,20 @@ class ResqueWorkerBase
 
     /**
      * Return all workers known to Resque as instantiated instances.
-     * @return array
+     * @return null|ResqueWorkerBase[]|ResqueWorkerInterface[]
      */
-    public function all()
+    public static function all(Resque $resqueInst)
     {
-        $workers = $this->resqueInstance->redis->smembers('workers');
+        $workers = $resqueInst->redis->smembers('workers');
         if (!is_array($workers)) {
             $workers = [];
         }
 
-        $instances = [];
+        $workers = [];
         foreach ($workers as $workerId) {
-            $instances[] = self::find($workerId);
+            $workers[] = self::find($resqueInst, $workerId);
         }
-        return $instances;
+        return $workers;
     }
 
     /**
@@ -126,9 +126,9 @@ class ResqueWorkerBase
      * Given a worker ID, find it and return an instantiated worker class for it.
      *
      * @param string $workerId The ID of the worker.
-     * @return boolean|ResqueWorkerBase Instance of the worker. False if the worker does not exist.
+     * @return boolean|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
      */
-    public function find($workerId)
+    public static function find(Resque $resqueInst,$workerId)
     {
         if (!self::exists($workerId) || false === strpos($workerId, ":")) {
             return false;
@@ -136,8 +136,8 @@ class ResqueWorkerBase
 
         list($hostname, $pid, $queues) = explode(':', $workerId, 3);
         $queues = explode(',', $queues);
-        $worker = new self($this->resqueInstance, $queues);
-        $this->id = $workerId;
+        $worker = new self($resqueInst, $queues);
+        $worker->id = $workerId;
         return $worker;
     }
 
@@ -162,7 +162,7 @@ class ResqueWorkerBase
         } else {
             foreach ($queues as $queue) {
                 $this->logger->log(LogLevel::INFO, 'Checking {queue} for jobs', ['queue' => $queue]);
-                $job = $this->reserve($queue);
+                $job = ResqueJobBase::reserve($this->resqueInstance, $queue);
                 if ($job) {
                     $this->logger->log(LogLevel::INFO, 'Found job on {queue}', ['queue' => $job->queue]);
                     return $job;
