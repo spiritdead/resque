@@ -2,52 +2,22 @@
 
 namespace spiritdead\resque\components\workers;
 
+use Psr\Log\LogLevel;
 use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerInterface;
-use spiritdead\resque\plugins\ResqueScheduler;
-use spiritdead\resque\Resque;
+use spiritdead\resque\plugins\schedule\ResqueScheduler;
 
+/**
+ * Class ResqueWorkerScheduler
+ * @package spiritdead\resque\components\workers
+ */
 class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInterface
 {
-    const LOG_NONE = 0;
-    const LOG_NORMAL = 1;
-    const LOG_VERBOSE = 2;
-
     /**
      * @var null|ResqueScheduler
      */
     protected $resqueInstance;
-
-    /**
-     * @var int Current log level of this worker.
-     */
-    public $logLevel = 0;
-
-    /**
-     * @var int Interval to sleep for between checking schedules.
-     */
-    protected $interval = 5;
-
-    /**
-     * @var boolean True if on the next iteration, the worker should shutdown.
-     */
-    protected $shutdown = false;
-
-    /**
-     * @var boolean True if this worker is paused.
-     */
-    protected $paused = false;
-
-    /**
-     * @var boolean for determinate if this worker is working
-     */
-    protected $working = false;
-
-    /**
-     * @var string String identifying this worker.
-     */
-    protected $id;
 
     /**
      * Instantiate a new worker, given a list of queues that it should be working
@@ -63,6 +33,55 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     public function __construct(ResqueScheduler $resqueInst, $queues = 'delayed_queue_schedule')
     {
         parent::__construct($resqueInst, $queues);
+    }
+
+    /**
+     * Return all workers known to Resque as instantiated instances.
+     * @param ResqueScheduler $resqueInst
+     * @return null|ResqueWorkerScheduler[]
+     */
+    public static function all($resqueInst)
+    {
+        $workersRaw = $resqueInst->redis->smembers('worker-schedulers');
+        $workers = [];
+        if (is_array($workersRaw) && count($workersRaw) > 0) {
+            foreach ($workersRaw as $workerId) {
+                $workers[] = self::find($resqueInst, $workerId);
+            }
+        }
+        return $workers;
+    }
+
+    /**
+     * Given a worker ID, find it and return an instantiated worker class for it.
+     *
+     * @param ResqueScheduler $resqueInst
+     * @param string $workerId The ID of the worker.
+     * @return boolean|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
+     */
+    public static function find($resqueInst, $workerId)
+    {
+        if (!self::exists($resqueInst, $workerId) || false === strpos($workerId, ":")) {
+            return false;
+        }
+
+        list($hostname, $pid, $queues) = explode(':', $workerId, 3);
+        $queues = explode(',', $queues);
+        $worker = new self($resqueInst, $queues);
+        $worker->id = $workerId;
+        return $worker;
+    }
+
+    /**
+     * Given a worker ID, check if it is registered/valid.
+     *
+     * @param ResqueScheduler $resqueInst instance of resque
+     * @param string $workerId ID of the worker.
+     * @return boolean True if the worker exists, false if not.
+     */
+    public static function exists($resqueInst, $workerId)
+    {
+        return (bool)$resqueInst->redis->sismember('worker-schedulers', $workerId);
     }
 
     /**
@@ -135,16 +154,15 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
         $item = null;
         while ($item = $this->resqueInstance->nextItemForTimestamp($timestamp)) {
             $this->workingOn($item);
-            $this->log('queueing ' . $item['class'] . ' in ' . $item['queue'] . ' [delayed]');
 
+            $this->logger->log(LogLevel::NOTICE, 'queueing ' . $item['class'] . ' in ' . $item['queue'] . ' [delayed]');
             $this->resqueInstance->events->trigger('beforeDelayedEnqueue', [
-                'queue' => $item['queue'],
                 'class' => $item['class'],
-                'args' => $item['args']
+                'args' => $item['args'],
+                'queue' => $item['queue']
             ]);
+            $this->resqueInstance->enqueue($item['queue'], $item['class'], $item['args'][0]);
 
-            $payload = array_merge([$item['queue'], $item['class']], $item['args']);
-            call_user_func_array('Resque::enqueue', $payload);
             $this->doneWorking();
         }
     }
@@ -175,47 +193,36 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      */
     public function unregisterWorker()
     {
-        $id = (string)$this;
-        $this->resqueInstance->redis->srem('worker-schedulers', $id);
-        $this->resqueInstance->redis->del('worker-scheduler:' . $id);
-        $this->resqueInstance->redis->del('worker-scheduler:' . $id . ':started');
-        $this->resqueInstance->stats->clear('processed:' . $id);
-        $this->resqueInstance->stats->clear('failed:' . $id);
+        $this->resqueInstance->redis->srem('worker-schedulers', $this->id);
+        $this->resqueInstance->redis->del('worker-scheduler:' . $this->id);
+        $this->resqueInstance->redis->del('worker-scheduler:' . $this->id . ':started');
+        $this->resqueInstance->stats->clear('processed:' . $this->id);
+        $this->resqueInstance->stats->clear('failed:' . $this->id);
     }
 
     /**
-     * Signal handler callback for USR2, pauses processing of new jobs.
+     * Look for any workers which should be running on this server and if
+     * they're not, remove them from Redis.
+     *
+     * This is a form of garbage collection to handle cases where the
+     * server may have been killed and the Resque workers did not die gracefully
+     * and therefore leave state information in Redis.
      */
-    public function pauseProcessing()
+    public function pruneDeadWorkers()
     {
-        $this->paused = true;
-    }
-
-    /**
-     * Signal handler callback for CONT, resumes worker allowing it to pick
-     * up new jobs.
-     */
-    public function unPauseProcessing()
-    {
-        $this->paused = false;
-    }
-
-    /**
-     * Schedule a worker for shutdown. Will finish processing the current job
-     * and when the timeout interval is reached, the worker will shut down.
-     */
-    public function shutdown()
-    {
-        $this->shutdown = true;
-    }
-
-    /**
-     * Force an immediate shutdown of the worker, killing any child jobs
-     * currently running.
-     */
-    public function shutdownNow()
-    {
-        $this->shutdown();
+        $workerPids = parent::workerPids();
+        $workers = self::all($this->resqueInstance);
+        foreach ($workers as $worker) {
+            if (is_object($worker)) {
+                list($host, $pid, $queues) = explode(':', (string)$worker, 3);
+                if ($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
+                    continue;
+                }
+                $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',
+                    ['worker' => (string)$worker]);
+                $worker->unregisterWorker();
+            }
+        }
     }
 
     /**
@@ -270,72 +277,6 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     }
 
     /**
-     * Return all workers known to Resque as instantiated instances.
-     * @return array
-     */
-    public static function all(ResqueScheduler $resqueInst)
-    {
-        $workers = $resqueInst->redis->smembers('worker-schedulers');
-        if (!is_array($workers)) {
-            $workers = [];
-        }
-
-        $instances = [];
-        foreach ($workers as $workerId) {
-            $instances[] = self::find($resqueInst, $workerId);
-        }
-        return $instances;
-    }
-
-    /**
-     * Given a worker ID, check if it is registered/valid.
-     *
-     * @param string $workerId ID of the worker.
-     * @return boolean True if the worker exists, false if not.
-     */
-    public function exists($workerId)
-    {
-        return (bool)$this->resqueInstance->redis->sismember('worker-schedulers', $workerId);
-    }
-
-    /**
-     * Update the status of the current worker process.
-     *
-     * On supported systems (with the PECL proctitle module installed), update
-     * the name of the currently running process to indicate the current state
-     * of a worker.
-     *
-     * @param string $status The updated process title.
-     */
-    protected function updateProcLine($status)
-    {
-        $processTitle = 'resque-scheduler-' . $this . ' ' . Resque::VERSION . ': ' . $status;
-        if (function_exists('cli_set_process_title') && PHP_OS !== 'Darwin') {
-            cli_set_process_title($processTitle);
-        } else {
-            if (function_exists('setproctitle')) {
-                setproctitle($processTitle);
-            }
-        }
-    }
-
-    /**
-     * Output a given log message to STDOUT.
-     *
-     * @param string $message Message to output.
-     */
-    public function log($message)
-    {
-        if ($this->logLevel == self::LOG_NORMAL) {
-            fwrite(STDOUT, "*** " . $message . "\n");
-        } else {
-            if ($this->logLevel == self::LOG_VERBOSE) {
-                fwrite(STDOUT, "** [" . strftime('%T %Y-%m-%d') . "] " . $message . "\n");
-            }
-        }
-    }
-
-    /**
      * Get a statistic belonging to this worker.
      *
      * @param string $stat Statistic to fetch.
@@ -344,15 +285,5 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     public function getStat($stat)
     {
         return $this->resqueInstance->stats->get($stat . ':' . $this);
-    }
-
-    /**
-     * Generate a string representation of this worker.
-     *
-     * @return string String identifier for this worker instance.
-     */
-    public function __toString()
-    {
-        return $this->id;
     }
 }

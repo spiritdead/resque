@@ -1,6 +1,6 @@
 <?php
 
-namespace spiritdead\resque\plugins;
+namespace spiritdead\resque\plugins\schedule;
 
 use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueSchedulerInvalidTimestampException;

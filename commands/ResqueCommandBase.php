@@ -2,6 +2,7 @@
 
 namespace spiritdead\resque\commands;
 
-class ResqueCommandBase {
+class ResqueCommandBase
+{
 
 }

@@ -43,7 +43,7 @@ class Resque
 
     public function __construct(ResqueBackend $backend = null)
     {
-        if($backend == null){
+        if ($backend == null) {
             $this->backend = new ResqueBackend();
         } else {
             $this->backend = $backend;
@@ -184,16 +184,18 @@ class Resque
             'queue' => $queue,
             'id' => $id,
         ];
-        $this->events->trigger('beforeEnqueue',$hookParams);
 
         try {
+            $this->events->trigger('beforeEnqueue', $hookParams);
+
             $job = new ResqueJobBase($this, $queue);
-            $job->create($class,$args,$trackStatus,$id);
+            $job->create($class, $args, $trackStatus, $id);
             $this->push($queue, $job->payload);
+
+            $this->events->trigger('afterEnqueue', $hookParams);
         } catch (ResqueJobCreateException $e) {
             return false;
         }
-        $this->events->trigger('afterEnqueue', $hookParams);
 
         return $id;
     }
