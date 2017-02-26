@@ -148,7 +148,6 @@ class ResqueScheduler extends Resque
      * @param string $class Name of the job class.
      * @param array $args Array of job arguments.
      */
-
     private function jobToHash($queue, $class, $args)
     {
         return [

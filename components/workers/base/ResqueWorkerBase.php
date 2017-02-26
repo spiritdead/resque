@@ -83,7 +83,7 @@ class ResqueWorkerBase
         $this->logger = new ResqueLog();
 
         if (!is_array($queues)) {
-            $queues = [$queues];
+            $queues = explode(',', $queues);
         }
 
         $this->queues = $queues;
@@ -128,7 +128,7 @@ class ResqueWorkerBase
      * @param string $workerId The ID of the worker.
      * @return boolean|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
      */
-    public static function find(Resque $resqueInst,$workerId)
+    public static function find(Resque $resqueInst, $workerId)
     {
         if (!self::exists($workerId) || false === strpos($workerId, ":")) {
             return false;
@@ -233,7 +233,7 @@ class ResqueWorkerBase
      * QUIT: Shutdown after the current job finishes processing.
      * USR1: Kill the forked child immediately and continue processing jobs.
      */
-    private function registerSigHandlers()
+    protected function registerSigHandlers()
     {
         if (!function_exists('pcntl_signal')) {
             return;
@@ -321,7 +321,7 @@ class ResqueWorkerBase
     public function pruneDeadWorkers()
     {
         $workerPids = $this->workerPids();
-        $workers = self::all();
+        $workers = self::all($this->resqueInstance);
         foreach ($workers as $worker) {
             if (is_object($worker)) {
                 list($host, $pid, $queues) = explode(':', (string)$worker, 3);

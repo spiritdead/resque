@@ -45,6 +45,8 @@ class Resque
     {
         if($backend == null){
             $this->backend = new ResqueBackend();
+        } else {
+            $this->backend = $backend;
         }
         $this->events = new ResqueEvent();
         $this->redis = new ResqueRedis($this->backend);

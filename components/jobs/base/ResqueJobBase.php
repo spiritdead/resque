@@ -9,7 +9,6 @@ use spiritdead\resque\controllers\ResqueJobFactory;
 use spiritdead\resque\controllers\ResqueJobStatus;
 use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueJobPerformException;
-use spiritdead\resque\helpers\ResqueEvent;
 use spiritdead\resque\helpers\ResqueHelper;
 use spiritdead\resque\Resque;
 
@@ -48,11 +47,6 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      * @var object|ResqueJobInterface Instance of the class performing work for this job.
      */
     public $classInstance;
-
-    /**
-     * @var ResqueEvent
-     */
-    public $jevents;
 
     /**
      * @var ResqueJobFactoryInterface

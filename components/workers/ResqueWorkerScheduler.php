@@ -32,22 +32,22 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     /**
      * @var boolean True if on the next iteration, the worker should shutdown.
      */
-    private $shutdown = false;
+    protected $shutdown = false;
 
     /**
      * @var boolean True if this worker is paused.
      */
-    private $paused = false;
+    protected $paused = false;
 
     /**
      * @var boolean for determinate if this worker is working
      */
-    private $working = false;
+    protected $working = false;
 
     /**
      * @var string String identifying this worker.
      */
-    private $id;
+    protected $id;
 
     /**
      * Instantiate a new worker, given a list of queues that it should be working
@@ -60,12 +60,9 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      *
      * @param string|array $queues String with a single queue name, array with multiple.
      */
-    public function __construct(ResqueScheduler $resqueInst,$queues)
+    public function __construct(ResqueScheduler $resqueInst, $queues = 'delayed_queue_schedule')
     {
-        parent::__construct($resqueInst,$queues);
-        $this->hostname = php_uname('n');
-
-        $this->id = $this->hostname . ':' . getmypid() . ':schedule';
+        parent::__construct($resqueInst, $queues);
     }
 
     /**
@@ -84,7 +81,7 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      *
      * @param int $interval How often to check schedules.
      */
-    public function work($interval = self::DEFAULT_INTERVAL,$blockinge = false)
+    public function work($interval = self::DEFAULT_INTERVAL, $blockinge = false)
     {
         if ($interval !== null) {
             $this->interval = $interval;
@@ -164,36 +161,13 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     }
 
     /**
-     * Look for any workers which should be running on this server and if
-     * they're not, remove them from Redis.
-     *
-     * This is a form of garbage collection to handle cases where the
-     * server may have been killed and the Resque workers did not die gracefully
-     * and therefore leave state information in Redis.
-     */
-    public function pruneDeadWorkers()
-    {
-        $workerPids = self::workerPids();
-        $workers = self::all($this->resqueInstance);
-        /* @var self $worker */
-        foreach ($workers as $worker) {
-            if (is_object($worker)) {
-                list($host, $pid) = explode(':', (string)$worker, 2);
-                if ($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
-                    continue;
-                }
-                $worker->unregisterWorker();
-            }
-        }
-    }
-
-    /**
      * Register this worker in Redis.
      */
     public function registerWorker()
-    {   
+    {
         $this->resqueInstance->redis->sadd('worker-schedulers', (string)$this);
-        $this->resqueInstance->redis->set('worker-scheduler:' . (string)$this . ':started', strftime('%a %b %d %H:%M:%S %Z %Y'));
+        $this->resqueInstance->redis->set('worker-scheduler:' . (string)$this . ':started',
+            strftime('%a %b %d %H:%M:%S %Z %Y'));
     }
 
     /**
@@ -207,27 +181,6 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
         $this->resqueInstance->redis->del('worker-scheduler:' . $id . ':started');
         $this->resqueInstance->stats->clear('processed:' . $id);
         $this->resqueInstance->stats->clear('failed:' . $id);
-    }
-
-    /**
-     * Register signal handlers that a worker should respond to.
-     *
-     * TERM: Shutdown immediately and stop processing jobs.
-     * INT: Shutdown immediately and stop processing jobs.
-     * QUIT: Shutdown after the current job finishes processing.
-     * USR1: Kill the forked child immediately and continue processing jobs.
-     */
-    private function registerSigHandlers()
-    {
-        if (!function_exists('pcntl_signal')) {
-            return;
-        }
-
-        pcntl_signal(SIGTERM, [$this, 'shutDownNow']);
-        pcntl_signal(SIGINT, [$this, 'shutDownNow']);
-        pcntl_signal(SIGQUIT, [$this, 'shutdown']);
-        pcntl_signal(SIGUSR2, [$this, 'pauseProcessing']);
-        pcntl_signal(SIGCONT, [$this, 'unPauseProcessing']);
     }
 
     /**

@@ -2,13 +2,13 @@
 
 namespace spiritdead\resque\controllers;
 
+use spiritdead\resque\components\jobs\ResqueJobInterface;
 use spiritdead\resque\exceptions\base\ResqueException;
-use spiritdead\resque\jobs\base\ResqueJobInterface;
 
 class ResqueJobFactory
 {
     /**
-     * @param $className
+     * @param string $className
      * @param array $args
      * @param $queue
      * @return ResqueJobInterface

@@ -8,10 +8,20 @@ use spiritdead\resque\components\jobs\base\ResqueJobBase;
  * Class ResqueJob
  * @package spiritdead\resque\components\jobs
  */
-class ResqueJob extends ResqueJobBase
+class ResqueJob
 {
     /**
-     * @var ResqueJob
+     * @var array
+     */
+    public $args = [];
+
+    /**
+     * @var ResqueJobBase
      */
     public $job;
+
+    /**
+     * @var null
+     */
+    public $result = null;
 }
