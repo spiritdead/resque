@@ -1,6 +1,6 @@
 <?php
 
-namespace spiritdead\resque\components\workers;
+namespace spiritdead\resque\plugins\schedule\workers;
 
 use Psr\Log\LogLevel;
 use spiritdead\resque\components\jobs\base\ResqueJobBase;
@@ -170,12 +170,11 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
     /**
      * Perform necessary actions to start a worker.
      */
-    protected function startup()
+    public function startup()
     {
-        $this->registerSigHandlers();
         $this->pruneDeadWorkers();
-        $this->resqueInstance->events->trigger('beforeFirstFork', $this);
         $this->registerWorker();
+        parent::startup();
     }
 
     /**

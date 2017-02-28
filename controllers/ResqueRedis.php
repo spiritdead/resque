@@ -250,11 +250,18 @@ class ResqueRedis
         }
     }
 
+    /**
+     * @return string
+     */
     public function getPrefix()
     {
         return $this->defaultNamespace;
     }
 
+    /**
+     * @param $string
+     * @return string
+     */
     public function removePrefix($string)
     {
         $prefix = $this->defaultNamespace;

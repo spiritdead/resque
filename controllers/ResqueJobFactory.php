@@ -5,6 +5,10 @@ namespace spiritdead\resque\controllers;
 use spiritdead\resque\components\jobs\ResqueJobInterface;
 use spiritdead\resque\exceptions\base\ResqueException;
 
+/**
+ * Class ResqueJobFactory
+ * @package spiritdead\resque\controllers
+ */
 class ResqueJobFactory
 {
     /**

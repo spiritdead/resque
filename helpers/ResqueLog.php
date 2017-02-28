@@ -11,10 +11,21 @@ use Psr\Log\LogLevel;
  */
 class ResqueLog extends AbstractLogger
 {
+    /**
+     * @var bool
+     */
     public $verbose;
 
+    /**
+     * @var bool
+     */
     public $debug;
 
+    /**
+     * ResqueLog constructor.
+     * @param bool $verbose
+     * @param bool $debug
+     */
     public function __construct($verbose = false, $debug = false)
     {
         $this->verbose = $verbose;

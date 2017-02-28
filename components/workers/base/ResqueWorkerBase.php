@@ -155,9 +155,7 @@ class ResqueWorkerBase
     protected function startup()
     {
         $this->registerSigHandlers();
-        $this->pruneDeadWorkers();
         $this->resqueInstance->events->trigger('beforeFirstFork', $this);
-        $this->registerWorker();
     }
 
     /**

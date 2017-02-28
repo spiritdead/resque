@@ -1,8 +1,12 @@
 <?php
 namespace spiritdead\resque\controllers\base;
 
-use spiritdead\resque\jobs\base\ResqueJobInterface;
+use spiritdead\resque\components\jobs\ResqueJobInterface;
 
+/**
+ * Interface ResqueJobFactoryInterface
+ * @package spiritdead\resque\controllers\base
+ */
 interface ResqueJobFactoryInterface
 {
     /**

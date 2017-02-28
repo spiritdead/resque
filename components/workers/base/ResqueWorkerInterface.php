@@ -8,6 +8,9 @@ use spiritdead\resque\components\jobs\base\ResqueJobBase;
  * Interface ResqueWorkerInterface
  * @package spiritdead\resque\components\workers\base
  */
+abstract class a {
+
+}
 interface ResqueWorkerInterface
 {
     public function work($interval = ResqueWorkerBase::DEFAULT_INTERVAL, $blocking = false);
@@ -31,4 +34,7 @@ interface ResqueWorkerInterface
     public function getWorking();
 
     public function pruneDeadWorkers();
+
+    public function startup();
+
 }

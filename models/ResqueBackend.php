@@ -2,6 +2,10 @@
 
 namespace spiritdead\resque\models;
 
+/**
+ * Class ResqueBackend
+ * @package spiritdead\resque\models
+ */
 class ResqueBackend
 {
     /**
@@ -37,7 +41,7 @@ class ResqueBackend
     /**
      * ResqueBackend constructor.
      * @param string $server
-     * @param int $port
+     * @param string $port
      * @param int $database
      */
     public function __construct(
@@ -50,6 +54,9 @@ class ResqueBackend
         $this->database = $database;
     }
 
+    /**
+     * @return string
+     */
     public function __toString()
     {
         return sprintf('%s:%s', $this->server, $this->port);

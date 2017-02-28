@@ -11,6 +11,10 @@ use spiritdead\resque\Resque;
 use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueJobForceExitException;
 
+/**
+ * Class ResqueWorker
+ * @package spiritdead\resque\components\workers
+ */
 class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
 {
     /**
@@ -130,6 +134,15 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
 
         $job->status->update(ResqueJobStatus::STATUS_COMPLETE);
         $this->logger->log(LogLevel::NOTICE, '{job} has finished', ['job' => $job]);
+    }
+
+    /**
+     * Perform necessary actions to start a worker.
+     */
+    public function startup()
+    {
+        $this->pruneDeadWorkers();
+        $this->registerWorker();
     }
 
     /**

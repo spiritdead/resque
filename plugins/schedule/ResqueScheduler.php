@@ -58,7 +58,7 @@ class ResqueScheduler extends Resque
     /**
      * Directly append an item to the delayed queue schedule.
      *
-     * @param DateTime|int $timestamp Timestamp job is scheduled to be run at.
+     * @param \DateTime|int $timestamp Timestamp job is scheduled to be run at.
      * @param array $item Hash of item to be pushed to schedule.
      */
     public function delayedPush($timestamp, $item)
@@ -147,6 +147,7 @@ class ResqueScheduler extends Resque
      * @param string $queue Name of the queue the job will be placed on.
      * @param string $class Name of the job class.
      * @param array $args Array of job arguments.
+     * @return array
      */
     private function jobToHash($queue, $class, $args)
     {
@@ -206,7 +207,7 @@ class ResqueScheduler extends Resque
      * that any jobs scheduled for the past when the worker wasn't running are
      * also queued up.
      *
-     * @param \DateTime|int $timestamp Instance of DateTime or UNIX timestamp.
+     * @param \DateTime|int $at Instance of DateTime or UNIX timestamp.
      *                                Defaults to now.
      * @return int|false UNIX timestamp, or false if nothing to run.
      */
@@ -261,7 +262,6 @@ class ResqueScheduler extends Resque
                 throw new ResqueException('Jobs must be put in a queue.');
             }
         }
-
         return true;
     }
 }
