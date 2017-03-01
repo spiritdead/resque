@@ -7,8 +7,8 @@ use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerInterface;
 use spiritdead\resque\controllers\ResqueJobStatus;
+use spiritdead\resque\exceptions\ResqueJobPerformException;
 use spiritdead\resque\Resque;
-use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueJobForceExitException;
 
 /**
@@ -125,10 +125,23 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
     {
         try {
             $this->resqueInstance->events->trigger('afterFork', $job);
-            $job->perform();
-        } catch (ResqueException $e) {
-            $this->logger->log(LogLevel::CRITICAL, '{job} has failed {stack}', ['job' => $job, 'stack' => $e]);
-            $job->fail($e);
+            $result = $job->perform();
+            if ($result instanceof ResqueJobPerformException) {
+                $this->logger->log(LogLevel::CRITICAL, '{job} has failed {message} at the line {line}',
+                    [
+                        'job' => $job,
+                        'message' => $result->getMessage(),
+                        'line' => $result->getLine()
+                    ]);
+                return;
+            }
+        } catch (\Exception $e) {
+            $this->logger->log(LogLevel::CRITICAL, '{job} has failed {message} at the line {line}',
+                [
+                    'job' => $job,
+                    'message' => $e->getMessage(),
+                    'line' => $e->getLine()
+                ]);
             return;
         }
 
@@ -143,6 +156,7 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
     {
         $this->pruneDeadWorkers();
         $this->registerWorker();
+        parent::startup();
     }
 
     /**
@@ -227,14 +241,14 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      * server may have been killed and the Resque workers did not die gracefully
      * and therefore leave state information in Redis.
      */
-    public function pruneDeadWorkers()
+    protected function pruneDeadWorkers()
     {
         $workerPids = parent::workerPids();
         $workers = self::all($this->resqueInstance);
         foreach ($workers as $worker) {
             if (is_object($worker)) {
                 list($host, $pid, $queues) = explode(':', (string)$worker, 3);
-                if ($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
+                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid, $workerPids) || $pid == getmypid()) {
                     continue;
                 }
                 $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',

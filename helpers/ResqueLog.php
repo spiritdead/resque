@@ -19,17 +19,17 @@ class ResqueLog extends AbstractLogger
     /**
      * @var bool
      */
-    public $debug;
+    public $displayErrors;
 
     /**
      * ResqueLog constructor.
      * @param bool $verbose
      * @param bool $debug
      */
-    public function __construct($verbose = false, $debug = false)
+    public function __construct($verbose = false, $displayErrors = false)
     {
         $this->verbose = $verbose;
-        $this->debug = $debug;
+        $this->displayErrors = $displayErrors;
     }
 
     /**
@@ -49,9 +49,8 @@ class ResqueLog extends AbstractLogger
             );
             return;
         }
-
-        if ($this->debug) {
-            if (!($level === LogLevel::INFO || $level === LogLevel::DEBUG)) {
+        if ($this->displayErrors) {
+            if (($level === LogLevel::CRITICAL || $level === LogLevel::EMERGENCY)) {
                 fwrite(
                     STDOUT,
                     '[' . $level . '] ' . $this->interpolate($message, $context) . PHP_EOL

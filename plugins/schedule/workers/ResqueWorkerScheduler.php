@@ -207,14 +207,14 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      * server may have been killed and the Resque workers did not die gracefully
      * and therefore leave state information in Redis.
      */
-    public function pruneDeadWorkers()
+    protected function pruneDeadWorkers()
     {
         $workerPids = parent::workerPids();
         $workers = self::all($this->resqueInstance);
         foreach ($workers as $worker) {
             if (is_object($worker)) {
                 list($host, $pid, $queues) = explode(':', (string)$worker, 3);
-                if ($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
+                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid, $workerPids) || $pid == getmypid()) {
                     continue;
                 }
                 $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',

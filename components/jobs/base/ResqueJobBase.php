@@ -186,7 +186,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      * Actually execute a job by calling the perform method on the class
      * associated with the job with the supplied arguments.
      *
-     * @return boolean
+     * @return boolean | \Exception
      * @throws ResqueJobPerformException When the job's class could not be found or it does not contain a perform method.
      */
     public function perform()
@@ -206,10 +206,13 @@ class ResqueJobBase implements ResqueJobInterfaceBase
             }
 
             $this->resqueInstance->events->trigger('afterPerform', $this);
-        } catch (ResqueJobPerformException $e) {
-            return false;
+        } catch (ResqueJobPerformException $e1) {
+            $this->fail($e1);
+            return $e1;
+        } catch (\Exception $e2) {
+            $this->fail($e2);
+            return $e2;
         }
-
         return true;
     }
 

@@ -23,7 +23,12 @@ class ResqueBackend
      */
     const DEFAULT_DATABASE = 0;
 
+    /**
+     * namespace base used in redis server
+     */
     const DEFAULT_NAMESPACE_REDIS = 'resque:';
+
+    const DEFAULT_NAMESPACE_WORKERS = '';
 
     /**
      * @var string
@@ -47,22 +52,33 @@ class ResqueBackend
     public $namespaceRedis;
 
     /**
+     * Namespace base used by the workers
+     * @var string
+     */
+    public $namespaceWorkers;
+
+    /**
      * ResqueBackend constructor.
      * @param string $server
      * @param string $port
      * @param int $database
      * @param string $namespace
+     * @param string $namespaceWorkers
      */
     public function __construct(
         $server = self::DEFAULT_HOST,
         $port = self::DEFAULT_PORT,
         $database = self::DEFAULT_DATABASE,
-        $namespace = self::DEFAULT_NAMESPACE_REDIS
+        $namespace = self::DEFAULT_NAMESPACE_REDIS,
+        $namespaceWorkers = self::DEFAULT_NAMESPACE_WORKERS
     ) {
         $this->server = $server;
         $this->port = $port;
         $this->database = $database;
         $this->namespaceRedis = $namespace;
+        if(empty($namespaceWorkers)){
+            $this->namespaceWorkers = php_uname('n');
+        }
     }
 
 

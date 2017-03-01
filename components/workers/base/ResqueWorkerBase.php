@@ -7,8 +7,25 @@ use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\helpers\ResqueLog;
 use spiritdead\resque\Resque;
 
-class ResqueWorkerBase
+abstract class ResqueWorkerBase
 {
+    // Abstract functions
+    abstract protected function work($interval = ResqueWorkerBase::DEFAULT_INTERVAL, $blocking = false);
+
+    abstract protected function pruneDeadWorkers();
+
+    abstract protected function perform(ResqueJobBase $job);
+
+    abstract public function registerWorker();
+
+    abstract public function unregisterWorker();
+
+    abstract protected function workingOn($job);
+
+    abstract protected function doneWorking();
+
+    abstract protected function getWorking();
+
     /**
      * DEFAULT INTERVAL WORK
      */
@@ -28,11 +45,6 @@ class ResqueWorkerBase
      * @var null|Resque
      */
     protected $resqueInstance;
-
-    /**
-     * @var string The hostname of this worker.
-     */
-    protected $hostname;
 
     /**
      * @var boolean True if on the next iteration, the worker should shutdown.
@@ -89,10 +101,10 @@ class ResqueWorkerBase
         }
 
         $this->queues = $queues;
-        $this->hostname = php_uname('n');
         $this->resqueInstance = $resqueInst;
 
-        $this->id = $this->hostname . ':' . getmypid() . ':' . implode(',', $this->queues);
+        $this->id = $this->resqueInstance->backend->namespaceWorkers . ':' . getmypid() . ':' . implode(',',
+                $this->queues);
     }
 
     /**
