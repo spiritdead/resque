@@ -8,6 +8,7 @@ use spiritdead\resque\models\ResqueBackend;
 /**
  * Class Resque_Redis
  * @package spiritdead\resque\controllers
+ *
  */
 class ResqueRedis
 {

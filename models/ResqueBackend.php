@@ -9,7 +9,7 @@ namespace spiritdead\resque\models;
 class ResqueBackend
 {
     /**
-     * A default host to connect to
+     * Default host to connect to
      */
     const DEFAULT_HOST = 'localhost';
 
@@ -24,10 +24,13 @@ class ResqueBackend
     const DEFAULT_DATABASE = 0;
 
     /**
-     * namespace base used in redis server
+     * Default namespace base used in redis server
      */
     const DEFAULT_NAMESPACE_REDIS = 'resque:';
 
+    /**
+     * Default namespace workers
+     */
     const DEFAULT_NAMESPACE_WORKERS = '';
 
     /**
@@ -58,6 +61,12 @@ class ResqueBackend
     public $namespaceWorkers;
 
     /**
+     * If the job fail enqueue in a secundary queue
+     * @var bool
+     */
+    public $recreateFailedJobs = false;
+
+    /**
      * ResqueBackend constructor.
      * @param string $server
      * @param string $port
@@ -70,15 +79,17 @@ class ResqueBackend
         $port = self::DEFAULT_PORT,
         $database = self::DEFAULT_DATABASE,
         $namespace = self::DEFAULT_NAMESPACE_REDIS,
-        $namespaceWorkers = self::DEFAULT_NAMESPACE_WORKERS
+        $namespaceWorkers = self::DEFAULT_NAMESPACE_WORKERS,
+        $recreateFailedJobs = false
     ) {
         $this->server = $server;
         $this->port = $port;
         $this->database = $database;
         $this->namespaceRedis = $namespace;
-        if(empty($namespaceWorkers)){
+        if (empty($namespaceWorkers)) {
             $this->namespaceWorkers = php_uname('n');
         }
+        $this->recreateFailedJobs = $recreateFailedJobs;
     }
 
 

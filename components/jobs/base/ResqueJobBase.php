@@ -72,7 +72,6 @@ class ResqueJobBase implements ResqueJobInterfaceBase
     /**
      * Create a new job and save it to the specified queue.
      *
-     * @param string $queue The name of the queue to place the job in.
      * @param string $class The name of the class that contains the code to execute the job.
      * @param array $args Any optional arguments that should be passed when the job is executed.
      * @param boolean $monitor Set to true to be able to monitor the status of a job.
@@ -81,7 +80,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      * @return string
      * @throws \InvalidArgumentException
      */
-    public function create($class, $args = null, $monitor = false, $id = false)
+    public function create($class, $args = null, $monitor = false, $id = null)
     {
         if ($id == null || empty($id)) {
             $id = ResqueHelper::generateJobId();
@@ -241,15 +240,19 @@ class ResqueJobBase implements ResqueJobInterfaceBase
 
         $this->resqueInstance->stats->incr('failed');
         $this->resqueInstance->stats->incr('failed:' . $this->worker);
+        if ($this->resqueInstance->backend->recreateFailedJobs) {
+            $this->recreate();
+        }
     }
 
     /**
      * Re-queue the current job.
+     * @param $queue string
      * @return string
      */
     public function recreate()
     {
-        return self::create($this->queue, $this->payload['class'], $this->getArguments(), $this->status->isTracking());
+        $this->resqueInstance->push($this->queue, $this->payload);
     }
 
     /**

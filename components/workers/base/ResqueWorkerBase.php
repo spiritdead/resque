@@ -64,7 +64,7 @@ abstract class ResqueWorkerBase
     /**
      * @var ResqueJobBase Current job, if any, being processed by this worker.
      */
-    protected $currentJob = null;
+    public $currentJob = null;
 
     /**
      * @var boolean for display if this worker is working or not

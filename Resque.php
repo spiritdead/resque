@@ -24,7 +24,7 @@ class Resque
     /**
      * @var null | ResqueRedis
      */
-    public $redis = null;
+    private static $redisGlobal = null;
 
     /**
      * @var null | ResqueBackend
@@ -41,7 +41,17 @@ class Resque
      */
     public $stats = null;
 
-    public function __construct(ResqueBackend $backend = null)
+    /**
+     * @var null|ResqueRedis
+     */
+    public $redis = null;
+
+    /**
+     * Resque constructor.
+     * @param ResqueBackend|null $backend
+     * @param bool $pasive
+     */
+    public function __construct(ResqueBackend $backend = null, $pasive = false)
     {
         if ($backend == null) {
             $this->backend = new ResqueBackend();
@@ -49,7 +59,10 @@ class Resque
             $this->backend = $backend;
         }
         $this->events = new ResqueEvent();
-        $this->redis = new ResqueRedis($this->backend);
+        if(self::$redisGlobal == null){
+            self::$redisGlobal = new ResqueRedis($this->backend);
+        }
+        $this->redis = self::$redisGlobal;
         $this->stats = new ResqueStat($this);
     }
 
