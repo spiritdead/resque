@@ -18,6 +18,20 @@ use spiritdead\resque\exceptions\ResqueJobForceExitException;
 class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
 {
     /**
+     * Name instances in redis
+     */
+    const WORKER_NAME = 'worker';
+
+    /**
+     * Name instance in redis
+     * @return string
+     */
+    public function workerName()
+    {
+        return self::WORKER_NAME;
+    }
+
+    /**
      * The primary loop for a worker which when called on an instance starts
      * the worker's life cycle.
      *
@@ -35,6 +49,9 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         $this->startup();
 
         while (true) {
+            if (function_exists('pcntl_signal_dispatch')) {
+                pcntl_signal_dispatch();
+            }
             if ($this->shutdown) {
                 break;
             }
@@ -172,10 +189,9 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
             return false;
         }
 
-        list($hostname, $pid, $queues) = explode(':', $workerId, 3);
-        $queues = explode(',', $queues);
-        $worker = new self($resqueInst, $queues);
-        $worker->id = $workerId;
+
+        $worker = new self($resqueInst);
+        $worker->restore($workerId);
         return $worker;
     }
 
@@ -186,7 +202,7 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      */
     public static function all($resqueInst)
     {
-        $workersRaw = $resqueInst->redis->smembers('workers');
+        $workersRaw = $resqueInst->redis->smembers(self::WORKER_NAME . 's');
         $workers = [];
         if (is_array($workersRaw) && count($workersRaw) > 0) {
             foreach ($workersRaw as $workerId) {
@@ -205,7 +221,16 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      */
     public static function exists($resqueInst, $workerId)
     {
-        return (bool)$resqueInst->redis->sismember('workers', $workerId);
+        return (bool)$resqueInst->redis->sismember(self::WORKER_NAME . 's', $workerId);
+    }
+
+    /**
+     * Time start to work
+     * @return int
+     */
+    public function getStartTime()
+    {
+        return $this->resqueInstance->redis->get(self::WORKER_NAME . ':' . $this->id . ':started');
     }
 
     /**
@@ -213,8 +238,8 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      */
     public function registerWorker()
     {
-        $this->resqueInstance->redis->sadd('workers', (string)$this);
-        $this->resqueInstance->redis->set('worker:' . (string)$this . ':started', strftime('%a %b %d %H:%M:%S %Z %Y'));
+        $this->resqueInstance->redis->sadd(self::WORKER_NAME . 's', (string)$this);
+        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . (string)$this . ':started', strtotime('now UTC'));
     }
 
     /**
@@ -226,9 +251,9 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
             $this->currentJob->fail(new ResqueJobForceExitException());
         }
 
-        $this->resqueInstance->redis->srem('workers', $this->id);
-        $this->resqueInstance->redis->del('worker:' . $this->id);
-        $this->resqueInstance->redis->del('worker:' . $this->id . ':started');
+        $this->resqueInstance->redis->srem(self::WORKER_NAME . 's', $this->id);
+        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id);
+        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id . ':started');
         $this->resqueInstance->stats->clear('processed:' . $this->id);
         $this->resqueInstance->stats->clear('failed:' . $this->id);
     }
@@ -248,7 +273,9 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         foreach ($workers as $worker) {
             if (is_object($worker)) {
                 list($host, $pid, $queues) = explode(':', (string)$worker, 3);
-                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid, $workerPids) || $pid == getmypid()) {
+                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid,
+                        $workerPids) || $pid == getmypid()
+                ) {
                     continue;
                 }
                 $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',
@@ -271,10 +298,10 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         $job->status->update(ResqueJobStatus::STATUS_RUNNING);
         $data = json_encode([
             'queue' => $job->queue,
-            'run_at' => strftime('%a %b %d %H:%M:%S %Z %Y'),
+            'run_at' => strtotime('now UTC'),
             'payload' => $job->payload
         ]);
-        $this->resqueInstance->redis->set('worker:' . $job->worker, $data);
+        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . $job->worker, $data);
     }
 
     /**
@@ -295,6 +322,6 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         $this->working = false;
         $this->resqueInstance->stats->incr('processed');
         $this->resqueInstance->stats->incr('processed:' . (string)$this);
-        $this->resqueInstance->redis->del('worker:' . (string)$this);
+        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . (string)$this);
     }
 }

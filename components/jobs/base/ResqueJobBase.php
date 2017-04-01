@@ -54,11 +54,17 @@ class ResqueJobBase implements ResqueJobInterfaceBase
     private $jobFactory;
 
     /**
+     * @var bool
+     */
+    public $running = false;
+
+    /**
      * ResqueJobBase constructor.
      * @param $queue
      * @param $payload
+     * @param $running
      */
-    public function __construct($resqueInstance, $queue, $payload = null)
+    public function __construct($resqueInstance, $queue, $payload = null, $running = false)
     {
         $this->resqueInstance = $resqueInstance;
         $this->queue = $queue;
@@ -67,6 +73,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
             $this->status = new ResqueJobStatus($this->resqueInstance, $this->payload['id']);
             $this->jobFactory = new ResqueJobFactory();
         }
+        $this->running = $running;
     }
 
     /**
@@ -82,7 +89,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      */
     public function create($class, $args = null, $monitor = false, $id = null)
     {
-        if ($id == null || empty($id)) {
+        if ($id === null || empty($id)) {
             $id = ResqueHelper::generateJobId();
         }
 
@@ -190,6 +197,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      */
     public function perform()
     {
+        $this->running = true;
         try {
             $this->resqueInstance->events->trigger('beforePerform', $this);
 

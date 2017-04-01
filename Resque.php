@@ -53,13 +53,13 @@ class Resque
      */
     public function __construct(ResqueBackend $backend = null, $pasive = false)
     {
-        if ($backend == null) {
+        if ($backend === null) {
             $this->backend = new ResqueBackend();
         } else {
             $this->backend = $backend;
         }
         $this->events = new ResqueEvent();
-        if(self::$redisGlobal == null){
+        if(self::$redisGlobal === null){
             self::$redisGlobal = new ResqueRedis($this->backend);
         }
         $this->redis = self::$redisGlobal;
@@ -83,7 +83,7 @@ class Resque
 
         // Close the connection to Redis before forking.
         // This is a workaround for issues phpredis has.
-        $this->redis = null;
+        //$this->redis = null;
 
         $pid = pcntl_fork();
         if ($pid === -1) {

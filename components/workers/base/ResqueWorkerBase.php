@@ -12,6 +12,8 @@ abstract class ResqueWorkerBase
     // Abstract functions
     abstract protected function work($interval = ResqueWorkerBase::DEFAULT_INTERVAL, $blocking = false);
 
+    abstract protected function workerName();
+
     abstract protected function pruneDeadWorkers();
 
     abstract protected function perform(ResqueJobBase $job);
@@ -25,6 +27,8 @@ abstract class ResqueWorkerBase
     abstract protected function doneWorking();
 
     abstract protected function getWorking();
+
+    abstract public function getStartTime();
 
     /**
      * DEFAULT INTERVAL WORK
@@ -57,9 +61,14 @@ abstract class ResqueWorkerBase
     protected $paused = false;
 
     /**
-     * @var string String identifying this worker.
+     * @var string identifying this worker.
      */
     protected $id;
+
+    /**
+     * @var integer process id in the server
+     */
+    protected $pid;
 
     /**
      * @var ResqueJobBase Current job, if any, being processed by this worker.
@@ -92,7 +101,7 @@ abstract class ResqueWorkerBase
      *
      * @param string|array $queues String with a single queue name, array with multiple.
      */
-    public function __construct(Resque $resqueInst, $queues)
+    public function __construct(Resque $resqueInst, $queues = '*')
     {
         $this->logger = new ResqueLog();
 
@@ -105,6 +114,27 @@ abstract class ResqueWorkerBase
 
         $this->id = $this->resqueInstance->backend->namespaceWorkers . ':' . getmypid() . ':' . implode(',',
                 $this->queues);
+        $this->pid = getmypid();
+    }
+
+    /**
+     * Method for regenerate worker from the current ID saved in the redis and the instance in the server
+     * @param $workerInstance
+     */
+    public function restore($workerInstance)
+    {
+        list($hostname, $pid, $queues) = explode(':', $workerInstance, 3);
+        if (!is_array($queues)) {
+            $queues = explode(',', $queues);
+        }
+        $this->queues = $queues;
+        $this->pid = $pid;
+        $this->id = $workerInstance; //regenerate worker
+        $data = $this->resqueInstance->redis->get($this->workerName() . ':' . $workerInstance);
+        if ($data !== false) {
+            $data = json_decode($data, true);
+            $this->currentJob = new ResqueJobBase($this->resqueInstance, $data['queue'], $data['payload'], true);
+        }
     }
 
     /**
