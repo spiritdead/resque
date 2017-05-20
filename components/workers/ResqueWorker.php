@@ -181,18 +181,19 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      *
      * @param Resque $resqueInst
      * @param string $workerId The ID of the worker.
-     * @return boolean|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
+     * @return null|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
      */
     public static function find($resqueInst, $workerId)
     {
         if (!self::exists($resqueInst, $workerId) || false === strpos($workerId, ":")) {
-            return false;
+            return null;
         }
 
-
         $worker = new self($resqueInst);
-        $worker->restore($workerId);
-        return $worker;
+        if($worker->restore($workerId)) {
+            return $worker;
+        }
+        return null;
     }
 
     /**
@@ -206,7 +207,10 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         $workers = [];
         if (is_array($workersRaw) && count($workersRaw) > 0) {
             foreach ($workersRaw as $workerId) {
-                $workers[] = self::find($resqueInst, $workerId);
+                $worker = self::find($resqueInst, $workerId);
+                if(isset($worker)) {
+                    $workers[] = $worker;
+                }
             }
         }
         return $workers;

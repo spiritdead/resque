@@ -60,7 +60,10 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
         $workers = [];
         if (is_array($workersRaw) && count($workersRaw) > 0) {
             foreach ($workersRaw as $workerId) {
-                $workers[] = self::find($resqueInst, $workerId);
+                $worker = self::find($resqueInst, $workerId);
+                if(isset($worker)) {
+                    $workers[] = $worker;
+                }
             }
         }
         return $workers;

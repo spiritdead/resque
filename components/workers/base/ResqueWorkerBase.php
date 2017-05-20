@@ -120,6 +120,7 @@ abstract class ResqueWorkerBase
     /**
      * Method for regenerate worker from the current ID saved in the redis and the instance in the server
      * @param $workerInstance
+     * @return boolean // Success or Fail
      */
     public function restore($workerInstance)
     {
@@ -127,6 +128,7 @@ abstract class ResqueWorkerBase
         if (!is_array($queues)) {
             $queues = explode(',', $queues);
         }
+
         $this->queues = $queues;
         $this->pid = $pid;
         $this->id = $workerInstance; //regenerate worker
@@ -135,6 +137,12 @@ abstract class ResqueWorkerBase
             $data = json_decode($data, true);
             $this->currentJob = new ResqueJobBase($this->resqueInstance, $data['queue'], $data['payload'], true);
         }
+        $workerPids = self::workerPids();
+        if (!in_array($pid, $workerPids)) {
+            $this->unregisterWorker();
+            return false;
+        }
+        return true;
     }
 
     /**
