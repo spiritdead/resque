@@ -328,7 +328,7 @@ abstract class ResqueWorkerBase
                 list(, $pids[],) = str_replace('"', '', explode(',', trim($line), 3));
             }
         } else {
-            exec('ps -A -o pid,command | grep [r]esque', $cmdOutput);
+            exec('ps -o pid,command | grep [r]esque', $cmdOutput);
             foreach ($cmdOutput as $line) {
                 list($pids[],) = explode(' ', trim($line), 2);
             }
