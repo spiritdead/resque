@@ -2,12 +2,12 @@
 
 namespace spiritdead\resque;
 
+use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\controllers\ResqueRedis;
 use spiritdead\resque\exceptions\ResqueJobCreateException;
 use spiritdead\resque\helpers\ResqueEvent;
 use spiritdead\resque\helpers\ResqueHelper;
 use spiritdead\resque\helpers\ResqueStat;
-use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\models\ResqueBackend;
 
 /**
@@ -19,15 +19,15 @@ class Resque
     /**
      * Version of the resque
      */
-    const VERSION = '1.0';
+    const VERSION = '1.0.5';
 
     /**
-     * @var null | ResqueRedis
+     * @var null|ResqueRedis
      */
     private static $redisGlobal = null;
 
     /**
-     * @var null | ResqueBackend
+     * @var null|ResqueBackend
      */
     public $backend = null;
 
@@ -49,9 +49,8 @@ class Resque
     /**
      * Resque constructor.
      * @param ResqueBackend|null $backend
-     * @param bool $pasive
      */
-    public function __construct(ResqueBackend $backend = null, $pasive = false)
+    public function __construct(ResqueBackend $backend = null)
     {
         if ($backend === null) {
             $this->backend = new ResqueBackend();
@@ -59,7 +58,7 @@ class Resque
             $this->backend = $backend;
         }
         $this->events = new ResqueEvent();
-        if(self::$redisGlobal === null){
+        if (self::$redisGlobal === null) {
             self::$redisGlobal = new ResqueRedis($this->backend);
         }
         $this->redis = self::$redisGlobal;
@@ -80,10 +79,6 @@ class Resque
         if (!function_exists('pcntl_fork')) {
             return false;
         }
-
-        // Close the connection to Redis before forking.
-        // This is a workaround for issues phpredis has.
-        //$this->redis = null;
 
         $pid = pcntl_fork();
         if ($pid === -1) {
@@ -209,7 +204,6 @@ class Resque
         } catch (ResqueJobCreateException $e) {
             return false;
         }
-
         return $id;
     }
 

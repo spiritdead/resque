@@ -14,5 +14,4 @@ interface ResqueJobInterface extends ResqueJobInterfaceBase
     public function setUp();
 
     public function tearDown();
-
 }

@@ -115,14 +115,7 @@ class ResqueBackend
             $dsn = 'redis://' . self::DEFAULT_HOST;
         }
         if (substr($dsn, 0, 7) === 'unix://') {
-            return [
-                $dsn,
-                null,
-                false,
-                null,
-                null,
-                null
-            ];
+            return [$dsn, null, false, null, null, null];
         }
         $parts = parse_url($dsn);
 
@@ -159,14 +152,7 @@ class ResqueBackend
             parse_str($parts['query'], $options);
         }
 
-        return [
-            $parts['host'],
-            $port,
-            $database,
-            $user,
-            $pass,
-            $options
-        ];
+        return [$parts['host'], $port, $database, $user, $pass, $options];
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace spiritdead\resque\plugins\schedule;
 
+use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\exceptions\base\ResqueException;
 use spiritdead\resque\exceptions\ResqueSchedulerInvalidTimestampException;
 use spiritdead\resque\Resque;
@@ -231,17 +232,22 @@ class ResqueScheduler extends Resque
      * Pop a job off the delayed queue for a given timestamp.
      *
      * @param \DateTime|int $timestamp Instance of DateTime or UNIX timestamp.
-     * @return array Matching job at timestamp.
+     * @return ResqueJobBase Matching job at timestamp.
      */
     public function nextItemForTimestamp($timestamp)
     {
         $timestamp = $this->getTimestamp($timestamp);
         $key = 'delayed:' . $timestamp;
-
         $item = json_decode($this->redis->lpop($key), true);
-
         $this->cleanupTimestamp($key, $timestamp);
-        return $item;
+        if(isset($item) && is_array($item)) {
+            $payload = [
+                'class' => $item['class'],
+                'args' => $item['args']
+            ];
+            return new ResqueJobBase($this, $item['queue'],$payload);
+        }
+        return null;
     }
 
     /**

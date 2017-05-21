@@ -42,68 +42,12 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      * order. You can easily add new queues dynamically and have them worked on using
      * this method.
      *
+     * @param ResqueScheduler $resqueInst instance resque
      * @param string|array $queues String with a single queue name, array with multiple.
      */
     public function __construct(ResqueScheduler $resqueInst, $queues = 'delayed_queue_schedule')
     {
         parent::__construct($resqueInst, $queues);
-    }
-
-    /**
-     * Return all workers known to Resque as instantiated instances.
-     * @param ResqueScheduler $resqueInst
-     * @return null|ResqueWorkerScheduler[]
-     */
-    public static function all($resqueInst)
-    {
-        $workersRaw = $resqueInst->redis->smembers(self::WORKER_NAME . 's');
-        $workers = [];
-        if (is_array($workersRaw) && count($workersRaw) > 0) {
-            foreach ($workersRaw as $workerId) {
-                $worker = self::find($resqueInst, $workerId);
-                if(isset($worker)) {
-                    $workers[] = $worker;
-                }
-            }
-        }
-        return $workers;
-    }
-
-    /**
-     * Given a worker ID, find it and return an instantiated worker class for it.
-     *
-     * @param ResqueScheduler $resqueInst
-     * @param string $workerId The ID of the worker.
-     * @return boolean|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
-     */
-    public static function find($resqueInst, $workerId)
-    {
-        if (!self::exists($resqueInst, $workerId) || false === strpos($workerId, ":")) {
-            return false;
-        }
-        $worker = new self($resqueInst);
-        $worker->restore($workerId);
-        return $worker;
-    }
-
-    /**
-     * Given a worker ID, check if it is registered/valid.
-     *
-     * @param ResqueScheduler $resqueInst instance of resque
-     * @param string $workerId ID of the worker.
-     * @return boolean True if the worker exists, false if not.
-     */
-    public static function exists($resqueInst, $workerId)
-    {
-        return (bool)$resqueInst->redis->sismember(self::WORKER_NAME . 's', $workerId);
-    }
-
-    /**
-     * @param ResqueJobBase $job
-     */
-    public function perform(ResqueJobBase $job)
-    {
-        // TODO: Implement perform() method.
     }
 
     /**
@@ -131,7 +75,11 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
                 break;
             }
             if (!$this->paused) {
-                $this->handleDelayedItems();
+                /** Handle delayed items for the next scheduled timestamp. */
+                while (($oldestJobTimestamp = $this->resqueInstance->nextDelayedTimestamp(null)) !== false) {
+                    $this->updateProcLine('Processing Delayed Items');
+                    $this->enqueueDelayedItemsForTimestamp($oldestJobTimestamp);
+                }
             } else {
                 $this->updateProcLine('Paused');
             }
@@ -168,123 +116,20 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      */
     public function enqueueDelayedItemsForTimestamp($timestamp)
     {
-        $item = null;
-        while ($item = $this->resqueInstance->nextItemForTimestamp($timestamp)) {
-            $this->workingOn($item);
+        $job = null;
+        while ($job = $this->resqueInstance->nextItemForTimestamp($timestamp)) {
+            $this->workingOn($job, 'schedule');
 
-            $this->logger->log(LogLevel::NOTICE, 'queueing ' . $item['class'] . ' in ' . $item['queue'] . ' [delayed]');
+            $this->logger->log(LogLevel::NOTICE, 'queueing ' . $job->payload['class'] . ' in ' . $job->queue . ' [delayed]');
             $this->resqueInstance->events->trigger('beforeDelayedEnqueue', [
-                'class' => $item['class'],
-                'args' => $item['args'],
-                'queue' => $item['queue']
+                'class' => $job->payload['class'],
+                'args' => $job->payload['args'],
+                'queue' => $job->queue
             ]);
-            $this->resqueInstance->enqueue($item['queue'], $item['class'], $item['args'][0]);
+            $this->resqueInstance->enqueue($job->queue, $job->payload['class'] , $job->payload['args'][0]);
 
             $this->doneWorking();
         }
-    }
-
-    /**
-     * Perform necessary actions to start a worker.
-     */
-    public function startup()
-    {
-        $this->pruneDeadWorkers();
-        $this->registerWorker();
-        parent::startup();
-    }
-
-    /**
-     * Time start to work
-     * @return int
-     */
-    public function getStartTime()
-    {
-        return $this->resqueInstance->redis->get(self::WORKER_NAME . ':' . $this->id . ':started');
-    }
-
-    /**
-     * Register this worker in Redis.
-     */
-    public function registerWorker()
-    {
-        $this->resqueInstance->redis->sadd(self::WORKER_NAME . 's', (string)$this);
-        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . (string)$this . ':started', strtotime('now UTC'));
-    }
-
-    /**
-     * Unregister this worker in Redis. (shutdown etc)
-     */
-    public function unregisterWorker()
-    {
-        $this->resqueInstance->redis->srem(self::WORKER_NAME . 's', $this->id);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id . ':started');
-        $this->resqueInstance->stats->clear('processed:' . $this->id);
-        $this->resqueInstance->stats->clear('failed:' . $this->id);
-    }
-
-    /**
-     * Look for any workers which should be running on this server and if
-     * they're not, remove them from Redis.
-     *
-     * This is a form of garbage collection to handle cases where the
-     * server may have been killed and the Resque workers did not die gracefully
-     * and therefore leave state information in Redis.
-     */
-    protected function pruneDeadWorkers()
-    {
-        $workerPids = parent::workerPids();
-        $workers = self::all($this->resqueInstance);
-        foreach ($workers as $worker) {
-            if (is_object($worker)) {
-                list($host, $pid, $queues) = explode(':', (string)$worker, 3);
-                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid,
-                        $workerPids) || $pid == getmypid()
-                ) {
-                    continue;
-                }
-                $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',
-                    ['worker' => (string)$worker]);
-                $worker->unregisterWorker();
-            }
-        }
-    }
-
-    /**
-     * Tell Redis which job we're currently working on.
-     *
-     * @param object $item Resque_Job instance containing the job we're working on.
-     */
-    public function workingOn($item)
-    {
-        $this->working = true;
-        $data = json_encode([
-            'queue' => 'schedule',
-            'run_at' => strtotime('now UTC'),
-            'payload' => $item
-        ]);
-        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . $this, $data);
-    }
-
-    /**
-     * Notify Redis that we've finished working on a job, clearing the working
-     * state and incrementing the job stats.
-     */
-    public function doneWorking()
-    {
-        $this->currentJob = null;
-        $this->working = false;
-        $this->resqueInstance->stats->incr('processed:' . (string)$this);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . (string)$this);
-    }
-
-    /**
-     * @return boolean get for the private attribute
-     */
-    public function getWorking()
-    {
-        return $this->working;
     }
 
     /**
@@ -300,16 +145,5 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
         } else {
             return json_decode($job, true);
         }
-    }
-
-    /**
-     * Get a statistic belonging to this worker.
-     *
-     * @param string $stat Statistic to fetch.
-     * @return int Statistic value.
-     */
-    public function getStat($stat)
-    {
-        return $this->resqueInstance->stats->get($stat . ':' . $this);
     }
 }

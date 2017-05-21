@@ -5,9 +5,9 @@ namespace spiritdead\resque\exceptions;
 use spiritdead\resque\exceptions\base\ResqueException;
 
 /**
- * Class ResqueRedisException
+ * Class ResqueWorkerInvalidException
  * @package spiritdead\resque\exceptions
  */
-class ResqueRedisException extends ResqueException
+class ResqueWorkerInvalidException extends ResqueException
 {
 }

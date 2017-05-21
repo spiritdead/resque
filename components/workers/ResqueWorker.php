@@ -7,9 +7,8 @@ use spiritdead\resque\components\jobs\base\ResqueJobBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerBase;
 use spiritdead\resque\components\workers\base\ResqueWorkerInterface;
 use spiritdead\resque\controllers\ResqueJobStatus;
-use spiritdead\resque\exceptions\ResqueJobPerformException;
-use spiritdead\resque\Resque;
 use spiritdead\resque\exceptions\ResqueJobForceExitException;
+use spiritdead\resque\Resque;
 
 /**
  * Class ResqueWorker
@@ -21,6 +20,23 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
      * Name instances in redis
      */
     const WORKER_NAME = 'worker';
+
+    /**
+     * Instantiate a new worker, given a list of queues that it should be working
+     * on. The list of queues should be supplied in the priority that they should
+     * be checked for jobs (first come, first served)
+     *
+     * Passing a single '*' allows the worker to work on all queues in alphabetical
+     * order. You can easily add new queues dynamically and have them worked on using
+     * this method.
+     *
+     * @param Resque $resqueInst instance resque
+     * @param string|array $queues String with a single queue name, array with multiple.
+     */
+    public function __construct(Resque $resqueInst, $queues = '*')
+    {
+        parent::__construct($resqueInst, $queues);
+    }
 
     /**
      * Name instance in redis
@@ -143,7 +159,7 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
         try {
             $this->resqueInstance->events->trigger('afterFork', $job);
             $result = $job->perform();
-            if ($result instanceof ResqueJobPerformException) {
+            if ($result instanceof \Exception) {
                 $this->logger->log(LogLevel::CRITICAL, '{job} has failed {message} at the line {line}',
                     [
                         'job' => $job,
@@ -164,168 +180,5 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
 
         $job->status->update(ResqueJobStatus::STATUS_COMPLETE);
         $this->logger->log(LogLevel::NOTICE, '{job} has finished', ['job' => $job]);
-    }
-
-    /**
-     * Perform necessary actions to start a worker.
-     */
-    public function startup()
-    {
-        $this->pruneDeadWorkers();
-        $this->registerWorker();
-        parent::startup();
-    }
-
-    /**
-     * Given a worker ID, find it and return an instantiated worker class for it.
-     *
-     * @param Resque $resqueInst
-     * @param string $workerId The ID of the worker.
-     * @return null|ResqueWorkerBase|ResqueWorkerInterface Instance of the worker. False if the worker does not exist.
-     */
-    public static function find($resqueInst, $workerId)
-    {
-        if (!self::exists($resqueInst, $workerId) || false === strpos($workerId, ":")) {
-            return null;
-        }
-
-        $worker = new self($resqueInst);
-        if($worker->restore($workerId)) {
-            return $worker;
-        }
-        return null;
-    }
-
-    /**
-     * @param Resque $resqueInst
-     * Return all workers known to Resque as instantiated instances.
-     * @return null|ResqueWorkerBase[]|ResqueWorkerInterface[]
-     */
-    public static function all($resqueInst)
-    {
-        $workersRaw = $resqueInst->redis->smembers(self::WORKER_NAME . 's');
-        $workers = [];
-        if (is_array($workersRaw) && count($workersRaw) > 0) {
-            foreach ($workersRaw as $workerId) {
-                $worker = self::find($resqueInst, $workerId);
-                if(isset($worker)) {
-                    $workers[] = $worker;
-                }
-            }
-        }
-        return $workers;
-    }
-
-    /**
-     * Given a worker ID, check if it is registered/valid.
-     *
-     * @param Resque $resqueInst instance of resque
-     * @param string $workerId ID of the worker.
-     * @return boolean True if the worker exists, false if not.
-     */
-    public static function exists($resqueInst, $workerId)
-    {
-        return (bool)$resqueInst->redis->sismember(self::WORKER_NAME . 's', $workerId);
-    }
-
-    /**
-     * Time start to work
-     * @return int
-     */
-    public function getStartTime()
-    {
-        return $this->resqueInstance->redis->get(self::WORKER_NAME . ':' . $this->id . ':started');
-    }
-
-    /**
-     * Register this worker in Redis.
-     */
-    public function registerWorker()
-    {
-        $this->resqueInstance->redis->sadd(self::WORKER_NAME . 's', (string)$this);
-        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . (string)$this . ':started', strtotime('now UTC'));
-    }
-
-    /**
-     * Unregister this worker in Redis. (shutdown etc)
-     */
-    public function unregisterWorker()
-    {
-        if (is_object($this->currentJob)) {
-            $this->currentJob->fail(new ResqueJobForceExitException());
-        }
-
-        $this->resqueInstance->redis->srem(self::WORKER_NAME . 's', $this->id);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . $this->id . ':started');
-        $this->resqueInstance->stats->clear('processed:' . $this->id);
-        $this->resqueInstance->stats->clear('failed:' . $this->id);
-    }
-
-    /**
-     * Look for any workers which should be running on this server and if
-     * they're not, remove them from Redis.
-     *
-     * This is a form of garbage collection to handle cases where the
-     * server may have been killed and the Resque workers did not die gracefully
-     * and therefore leave state information in Redis.
-     */
-    protected function pruneDeadWorkers()
-    {
-        $workerPids = parent::workerPids();
-        $workers = self::all($this->resqueInstance);
-        foreach ($workers as $worker) {
-            if (is_object($worker)) {
-                list($host, $pid, $queues) = explode(':', (string)$worker, 3);
-                if ($host != $this->resqueInstance->backend->namespaceWorkers || in_array($pid,
-                        $workerPids) || $pid == getmypid()
-                ) {
-                    continue;
-                }
-                $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}',
-                    ['worker' => (string)$worker]);
-                $worker->unregisterWorker();
-            }
-        }
-    }
-
-    /**
-     * Tell Redis which job we're currently working on.
-     *
-     * @param ResqueJobBase $job instance containing the job we're working on.
-     */
-    public function workingOn($job)
-    {
-        $job->worker = $this;
-        $this->currentJob = $job;
-        $this->working = true;
-        $job->status->update(ResqueJobStatus::STATUS_RUNNING);
-        $data = json_encode([
-            'queue' => $job->queue,
-            'run_at' => strtotime('now UTC'),
-            'payload' => $job->payload
-        ]);
-        $this->resqueInstance->redis->set(self::WORKER_NAME . ':' . $job->worker, $data);
-    }
-
-    /**
-     * @return boolean get for the private attribute
-     */
-    public function getWorking()
-    {
-        return $this->working;
-    }
-
-    /**
-     * Notify Redis that we've finished working on a job, clearing the working
-     * state and incrementing the job stats.
-     */
-    public function doneWorking()
-    {
-        $this->currentJob = null;
-        $this->working = false;
-        $this->resqueInstance->stats->incr('processed');
-        $this->resqueInstance->stats->incr('processed:' . (string)$this);
-        $this->resqueInstance->redis->del(self::WORKER_NAME . ':' . (string)$this);
     }
 }

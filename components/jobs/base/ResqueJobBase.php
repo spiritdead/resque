@@ -69,7 +69,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
         $this->resqueInstance = $resqueInstance;
         $this->queue = $queue;
         $this->payload = $payload;
-        if (isset($this->payload['id'])) {
+        if (isset($this->payload['id']) && !empty($this->payload['id'])) {
             $this->status = new ResqueJobStatus($this->resqueInstance, $this->payload['id']);
             $this->jobFactory = new ResqueJobFactory();
         }
@@ -180,7 +180,7 @@ class ResqueJobBase implements ResqueJobInterfaceBase
      */
     public function getInstance()
     {
-        if (!is_null($this->classInstance)) {
+        if (isset($this->classInstance)) {
             return $this->classInstance;
         }
         $this->classInstance = $this->jobFactory->create($this->payload['class'], $this->getArguments(), $this->queue);
@@ -235,16 +235,9 @@ class ResqueJobBase implements ResqueJobInterfaceBase
             'job' => $this
         ]);
 
-        $this->status->update(ResqueJobStatus::STATUS_FAILED);
-
-        //@todo: create a way to use a queue to store all of the failed jobs
-
-        /*Resque_Failure::create(
-            $this->payload,
-            $exception,
-            $this->worker,
-            $this->queue
-        );*/
+        if(isset($this->status)) {
+            $this->status->update(ResqueJobStatus::STATUS_FAILED);
+        }
 
         $this->resqueInstance->stats->incr('failed');
         $this->resqueInstance->stats->incr('failed:' . $this->worker);
@@ -255,8 +248,6 @@ class ResqueJobBase implements ResqueJobInterfaceBase
 
     /**
      * Re-queue the current job.
-     * @param $queue string
-     * @return string
      */
     public function recreate()
     {
