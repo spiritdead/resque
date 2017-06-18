@@ -76,13 +76,17 @@ class ResqueWorker extends ResqueWorkerBase implements ResqueWorkerInterface
             $job = false;
             if (!$this->paused) {
                 if ($blocking === true) {
-                    $this->logger->log(LogLevel::INFO, 'Starting blocking with timeout of {interval}',
-                        ['interval' => $this->interval]);
-                    $this->updateProcLine('Waiting for ' . implode(',',
-                            $this->queues) . ' with blocking timeout ' . $this->interval);
+                    $this->logger->log(
+                        LogLevel::INFO,
+                        'Starting blocking with timeout of {interval}',
+                        ['interval' => $this->interval]
+                    );
+                    $this->updateProcLine(
+                        'Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $this->interval
+                    );
                 } else {
-                    $this->updateProcLine('Waiting for ' . implode(',',
-                            $this->queues) . ' with interval ' . $this->interval);
+                    $this->updateProcLine(
+                        'Waiting for ' . implode(',', $this->queues) . ' with interval ' . $this->interval);
                 }
 
                 $job = $this->reserve($blocking, $this->interval);

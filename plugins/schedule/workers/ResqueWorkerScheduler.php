@@ -58,7 +58,7 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      *
      * @param int $interval How often to check schedules.
      */
-    public function work($interval = self::DEFAULT_INTERVAL, $blockinge = false)
+    public function work($interval = self::DEFAULT_INTERVAL, $blocking = false)
     {
         if ($interval !== null) {
             $this->interval = $interval;
@@ -76,10 +76,7 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
             }
             if (!$this->paused) {
                 /** Handle delayed items for the next scheduled timestamp. */
-                while (($oldestJobTimestamp = $this->resqueInstance->nextDelayedTimestamp(null)) !== false) {
-                    $this->updateProcLine('Processing Delayed Items');
-                    $this->enqueueDelayedItemsForTimestamp($oldestJobTimestamp);
-                }
+                $this->handleDelayedItems(null);
             } else {
                 $this->updateProcLine('Paused');
             }
@@ -114,7 +111,7 @@ class ResqueWorkerScheduler extends ResqueWorkerBase implements ResqueWorkerInte
      *
      * @param \DateTime|int $timestamp Search for any items up to this timestamp to schedule.
      */
-    public function enqueueDelayedItemsForTimestamp($timestamp)
+    private function enqueueDelayedItemsForTimestamp($timestamp)
     {
         $job = null;
         while ($job = $this->resqueInstance->nextItemForTimestamp($timestamp)) {
